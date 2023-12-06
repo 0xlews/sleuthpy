@@ -17,6 +17,7 @@ import re
 import sys
 import urllib.parse
 import json
+from tqdm import tqdm
 
 # Ensure Python version compatibility
 if sys.version_info < (3, 10, 4):
@@ -70,7 +71,7 @@ def detect_and_decode(file_path, encoding=None):
     decoded_data = []
 
     if encoding in [None, "Base64"]:
-        for encoded in encoded_strings_b64:
+        for encoded in tqdm(encoded_strings_b64, desc="Decoding Base64"):
             encoded_str = encoded.decode('utf-8', 'ignore')
             if is_valid_base64(encoded_str):
                 try:
@@ -83,7 +84,7 @@ def detect_and_decode(file_path, encoding=None):
     MIN_HEX_LENGTH = 4
 
     if encoding in [None, "Hexadecimal"]:
-        for encoded in encoded_strings_hex:
+        for encoded in tqdm(encoded_strings_hex, desc="Decoding Hex"):
             encoded_str = encoded.decode('utf-8', 'ignore')
             if is_valid_hex(encoded_str) and len(encoded_str) >= MIN_HEX_LENGTH and encoded not in encoded_strings_b64:
                 decoded = decode_hex(encoded_str)
@@ -91,7 +92,7 @@ def detect_and_decode(file_path, encoding=None):
                     decoded_data.append((encoded_str, "Hex", decoded))
 
     if encoding in [None, "URL Encoding"]:
-        for encoded in encoded_strings_url:
+        for encoded in tqdm(encoded_strings_url, desc="Decoding URL"):
             encoded_str = encoded.decode('utf-8', 'ignore')
             try:
                 if "%" in encoded_str and encoded_str not in [e[0] for e in decoded_data]:
