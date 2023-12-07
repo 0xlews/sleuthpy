@@ -23,27 +23,45 @@ from tqdm import tqdm
 if sys.version_info < (3, 10, 4):
     sys.exit("Requires Python 3.10.4 or higher")
 
-# Function to check if a string is valid base64
+# Valid base64 check
 def is_valid_base64(s):
     pattern = re.compile(r'^(?:%[0-9a-fA-F]{2}|[A-Za-z0-9_.~!$&\'()*+,;=:@/-])+$')
     return bool(pattern.match(s))
 
-# Function to check if a string is valid hexadecimal
+# Valid hexadecimal check
 def is_valid_hex(s):
     pattern = re.compile(r'^[0-9a-fA-F]+$')
     return bool(pattern.match(s))
 
-# Function to check if a string is valid URL encoding
+# Valid encoded URL check
 def is_valid_url(s):
     pattern = re.compile(r'(?:%[0-9a-fA-F]{2}|[A-Za-z0-9_.~!$&\'()*+,;=:@/-])+')
     return bool(pattern.match(s))
 
-# Function to decode a hexadecimal string
+# Valid binary check
+def is_valid_binary(s):
+    return all(c in '01' for c in s) and len(s) % 8 == 0
+
 def decode_hex(s):
     try:
         return bytes.fromhex(s).decode('utf-8')
     except (ValueError, binascii.Error, UnicodeDecodeError):
         return None
+
+def decode_binary(binary_str):
+    try:
+        # Ensure the binary string is continuous without spaces
+        binary_str = binary_str.replace(" ", "")
+
+        # Decode each 8-bit segment
+        text = ''.join(chr(int(binary_str[i:i+8], 2)) for i in range(0, len(binary_str), 8))
+        
+        if is_readable_text(text):
+            return text
+        else:
+            return "Invalid binary string"
+    except Exception as e:
+        return f"Error: {e}"
 
 # Function to determine if a string is mostly readable text
 def is_readable_text(s):
@@ -56,28 +74,29 @@ def is_readable_text(s):
 # Function to detect and decode encoded strings in a file
 def detect_and_decode(file_path, encoding=None):
     with open(file_path, 'rb') as f:
-        content = f.read()
+        content = f.read().decode('utf-8', 'ignore')  # decode to handle binary
 
-    # Define regular expressions for different types of encodings
-    pattern_b64 = rb'(?:[A-Za-z0-9+/]{4}){2,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?'
-    pattern_hex = rb'[0-9a-fA-F]+'
-    pattern_url = rb'(?:%[0-9a-fA-F]{2}|[A-Za-z0-9_.~!$&\'()*+,;=:@/-])+'
+    # Change from byte literals to string literals
+    pattern_b64 = r'(?<!\w)(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?(?!\w)'
+    pattern_hex = r'\b[0-9a-fA-F]{2,}\b'
+    pattern_url = r'https?%3A%2F%2F[\w%.-]+(?:%2F[\w%.-]*)*'
+    pattern_binary = r'\b[01]{8,}\b'
 
     # Find encoded strings matching the regular expressions
     encoded_strings_b64 = re.findall(pattern_b64, content)
     encoded_strings_hex = re.findall(pattern_hex, content)
     encoded_strings_url = re.findall(pattern_url, content)
+    encoded_strings_binary = re.findall(pattern_binary, content)  # No need to encode
 
     decoded_data = []
 
     if encoding in [None, "Base64"]:
         for encoded in tqdm(encoded_strings_b64, desc="Decoding Base64"):
-            encoded_str = encoded.decode('utf-8', 'ignore')
-            if is_valid_base64(encoded_str):
+            if is_valid_base64(encoded):
                 try:
                     decoded = base64.b64decode(encoded).decode('utf-8')
                     if decoded.strip() and is_readable_text(decoded):
-                        decoded_data.append((encoded_str, "Base64", decoded))
+                        decoded_data.append((encoded, "Base64", decoded))
                 except:
                     pass
 
@@ -85,22 +104,27 @@ def detect_and_decode(file_path, encoding=None):
 
     if encoding in [None, "Hexadecimal"]:
         for encoded in tqdm(encoded_strings_hex, desc="Decoding Hex"):
-            encoded_str = encoded.decode('utf-8', 'ignore')
-            if is_valid_hex(encoded_str) and len(encoded_str) >= MIN_HEX_LENGTH and encoded not in encoded_strings_b64:
-                decoded = decode_hex(encoded_str)
+            if is_valid_hex(encoded) and len(encoded) >= MIN_HEX_LENGTH:
+                decoded = decode_hex(encoded)
                 if decoded and decoded.strip() and is_readable_text(decoded):
-                    decoded_data.append((encoded_str, "Hex", decoded))
+                    decoded_data.append((encoded, "Hex", decoded))
 
     if encoding in [None, "URL Encoding"]:
         for encoded in tqdm(encoded_strings_url, desc="Decoding URL"):
-            encoded_str = encoded.decode('utf-8', 'ignore')
-            try:
-                if "%" in encoded_str and encoded_str not in [e[0] for e in decoded_data]:
-                    decoded = urllib.parse.unquote(encoded_str)
+            if is_valid_url(encoded):
+                try:
+                    decoded = urllib.parse.unquote(encoded)
                     if decoded.strip() and is_readable_text(decoded):
-                        decoded_data.append((encoded_str, "URL Encoding", decoded))
-            except:
-                pass
+                        decoded_data.append((encoded, "URL Encoding", decoded))
+                except:
+                    pass
+
+    if encoding in [None, "Binary"]:
+        for encoded in tqdm(encoded_strings_binary, desc="Decoding Binary"):
+            if is_valid_binary(encoded):
+                decoded = decode_binary(encoded)
+                if decoded.strip() and is_readable_text(decoded):
+                    decoded_data.append((encoded, "Binary", decoded))
 
     return decoded_data
 
