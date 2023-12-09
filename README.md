@@ -33,7 +33,7 @@ git clone https://github.com/lewiswigmore/sleuthpy.git
 Ensure Python 3 is installed on your system. Install the required libraries using pip:
 
 ```bash
-pip install requests tqdm ratelimit
+pip install tqdm
 ```
 
 ## Usage
