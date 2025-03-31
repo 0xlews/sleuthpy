@@ -24,11 +24,7 @@ SleuthPy is a Python utility designed to decode obfuscated content within files.
 - Libraries: `tqdm`
 
 ### Installation
-Clone the repository:
-
-```bash
-git clone https://github.com/0xlews/sleuthpy.git
-```
+Clone the repository.
 
 Ensure Python 3 is installed on your system. Install the required libraries using pip:
 
